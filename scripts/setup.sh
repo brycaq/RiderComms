@@ -35,9 +35,10 @@ if ! grep -q "play-services-nearby" "$GRADLE_FILE" 2>/dev/null; then
     "$GRADLE_FILE" > "$GRADLE_FILE.tmp" && mv "$GRADLE_FILE.tmp" "$GRADLE_FILE"
 fi
 
-echo "==> Ensuring compileSdk/targetSdk 35 (audioplayers requires it)"
+echo "==> Ensuring compileSdk/targetSdk/minSdk (record_android + audioplayers require newer SDKs)"
 sed -i.bak -E 's/(compileSdk(Version)?) flutter\.compileSdkVersion/\1 35/' "$GRADLE_FILE"
 sed -i.bak -E 's/(targetSdk(Version)?) flutter\.targetSdkVersion/\1 35/' "$GRADLE_FILE"
+sed -i.bak -E 's/(minSdk(Version)?) flutter\.minSdkVersion/\1 23/' "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
 
 echo "==> Merging AndroidManifest permissions"
@@ -112,7 +113,7 @@ for GRADLE in "$PUB_CACHE_DIR"/hosted/pub.dev/record_android-*/android/build.gra
     sed -i.bak \
       -e 's/flutter\.compileSdkVersion/35/g' \
       -e 's/flutter\.targetSdkVersion/35/g' \
-      -e 's/flutter\.minSdkVersion/21/g' \
+      -e 's/flutter\.minSdkVersion/23/g' \
       "$GRADLE"
     rm -f "$GRADLE.bak"
     echo "   patched $GRADLE"
@@ -125,7 +126,7 @@ echo "==> Registering new iOS Swift file with the Xcode project"
 # new .swift file into Runner/ via cp is invisible to Xcode's build system
 # until it's registered - use mod-pbxproj (a small, widely-used CLI) to add
 # it to the Runner target's Sources build phase.
-python3 -m pip install --quiet --user pbxproj
+python3 -m pip install --quiet --user --break-system-packages pbxproj
 PBXPROJ_BIN="$(python3 -m site --user-base)/bin/pbxproj"
 "$PBXPROJ_BIN" file app/ios/Runner.xcodeproj app/ios/Runner/MultipeerDiscoveryPlugin.swift --target Runner
 
