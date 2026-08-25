@@ -1,0 +1,26 @@
+name: intercom_app
+description: Nearby intercom app - Bluetooth/Wi-Fi discovery, host/join sessions, push-to-talk audio.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  record: ^5.1.2
+  audioplayers: ^6.1.0
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.4
+  uuid: ^4.4.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
