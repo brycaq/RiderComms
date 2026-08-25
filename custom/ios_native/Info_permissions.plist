@@ -1,0 +1,15 @@
+<!--
+  Merge these key/value pairs into the <dict> of ios/Runner/Info.plist.
+  setup.sh does this automatically via PlistBuddy.
+-->
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Intercom uses Bluetooth to discover nearby sessions.</string>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Intercom uses your local network to connect to nearby sessions.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Intercom needs the microphone for push-to-talk audio.</string>
+<key>NSBonjourServices</key>
+<array>
+    <string>_intercom-app._tcp</string>
+    <string>_intercom-app._udp</string>
+</array>
