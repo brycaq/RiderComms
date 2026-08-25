@@ -46,6 +46,9 @@ jobs:
           chmod +x scripts/setup.sh
           ./scripts/setup.sh
 
-      - name: Build iOS (no codesign)
+      - name: Build iOS (simulator, no codesign)
         working-directory: app
-        run: flutter build ios --debug --no-codesign
+        # --simulator targets the simulator architecture, which needs no
+        # Development Team / provisioning profile at all - --no-codesign
+        # alone still assumes a device build and fails without one.
+        run: flutter build ios --debug --simulator
