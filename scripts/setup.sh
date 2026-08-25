@@ -96,6 +96,38 @@ PYEOF
 echo "==> Fetching packages"
 cd app
 flutter pub get
+cd "$ROOT_DIR"
+
+echo "==> Patching record_android's build.gradle in the pub cache"
+# record_android ships its own build.gradle referencing flutter.compileSdkVersion,
+# a legacy property that isn't reliably exposed to plugin subprojects under the
+# Flutter Gradle Plugin loading used by current `flutter create` templates. This
+# breaks regardless of which record version resolves, since the sub-package
+# (record_android) versions independently of the top-level `record` package.
+# Patch it directly wherever pub put it - the version number in the folder name
+# varies, so glob for it instead of hardcoding.
+PUB_CACHE_DIR="${PUB_CACHE:-$HOME/.pub-cache}"
+for GRADLE in "$PUB_CACHE_DIR"/hosted/pub.dev/record_android-*/android/build.gradle; do
+  if [ -f "$GRADLE" ]; then
+    sed -i.bak \
+      -e 's/flutter\.compileSdkVersion/35/g' \
+      -e 's/flutter\.targetSdkVersion/35/g' \
+      -e 's/flutter\.minSdkVersion/21/g' \
+      "$GRADLE"
+    rm -f "$GRADLE.bak"
+    echo "   patched $GRADLE"
+  fi
+done
+
+echo "==> Registering new iOS Swift file with the Xcode project"
+# Unlike Android (Gradle auto-discovers every .kt file under the source set),
+# Xcode only compiles files explicitly listed in project.pbxproj. Dropping a
+# new .swift file into Runner/ via cp is invisible to Xcode's build system
+# until it's registered - use mod-pbxproj (a small, widely-used CLI) to add
+# it to the Runner target's Sources build phase.
+python3 -m pip install --quiet --user pbxproj
+PBXPROJ_BIN="$(python3 -m site --user-base)/bin/pbxproj"
+"$PBXPROJ_BIN" file app/ios/Runner.xcodeproj app/ios/Runner/MultipeerDiscoveryPlugin.swift --target Runner
 
 echo "Done. Project is ready in ./app"
 echo "Run: cd app && flutter run"
