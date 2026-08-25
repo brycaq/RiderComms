@@ -51,6 +51,10 @@ echo "==> Pinning buildToolsVersion to match compileSdk 35"
 # a build-tools version that old can't parse the newer platform's resource
 # table format, producing a cryptic "entry offsets overlap actual entry
 # data" error that looks like SDK corruption but isn't.
+# Anchored on the "android {" block opener rather than the (possibly
+# variably-formatted) compileSdk line, since that's guaranteed to appear
+# verbatim and doesn't depend on the compileSdk substitution above having
+# matched whatever exact syntax this Flutter version's template used.
 python3 - "$GRADLE_FILE" <<'PYEOF'
 import sys, re
 path = sys.argv[1]
@@ -58,7 +62,7 @@ with open(path) as f:
     content = f.read()
 if 'buildToolsVersion' not in content:
     content = re.sub(
-        r'(compileSdk(Version)?\s*=?\s*35\s*\n)',
+        r'(android\s*\{[ \t]*\n)',
         r'\1    buildToolsVersion "35.0.0"\n',
         content,
         count=1,
