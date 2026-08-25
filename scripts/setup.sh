@@ -45,6 +45,28 @@ sed -i.bak -E 's/(targetSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.targetS
 sed -i.bak -E 's/(minSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/\1 = 23/' "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
 
+echo "==> Pinning buildToolsVersion to match compileSdk 35"
+# Without this, Gradle can pair compileSdk 35 with whatever build-tools
+# happens to already be cached on the runner (observed: 30.0.3) - aapt2 from
+# a build-tools version that old can't parse the newer platform's resource
+# table format, producing a cryptic "entry offsets overlap actual entry
+# data" error that looks like SDK corruption but isn't.
+python3 - "$GRADLE_FILE" <<'PYEOF'
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+if 'buildToolsVersion' not in content:
+    content = re.sub(
+        r'(compileSdk(Version)?\s*=?\s*35\s*\n)',
+        r'\1    buildToolsVersion "35.0.0"\n',
+        content,
+        count=1,
+    )
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
 if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
