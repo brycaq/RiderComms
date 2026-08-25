@@ -1,0 +1,7 @@
+# The generated Flutter project - recreated by scripts/setup.sh, not committed.
+app/
+
+# Common editor/OS junk
+.DS_Store
+.idea/
+*.iml
