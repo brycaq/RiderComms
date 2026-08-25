@@ -36,9 +36,13 @@ if ! grep -q "play-services-nearby" "$GRADLE_FILE" 2>/dev/null; then
 fi
 
 echo "==> Ensuring compileSdk/targetSdk/minSdk (record_android + audioplayers require newer SDKs)"
-sed -i.bak -E 's/(compileSdk(Version)?) flutter\.compileSdkVersion/\1 35/' "$GRADLE_FILE"
-sed -i.bak -E 's/(targetSdk(Version)?) flutter\.targetSdkVersion/\1 35/' "$GRADLE_FILE"
-sed -i.bak -E 's/(minSdk(Version)?) flutter\.minSdkVersion/\1 23/' "$GRADLE_FILE"
+# Regex allows an optional '=' because Flutter's template has used both
+# "compileSdk flutter.compileSdkVersion" (older) and
+# "compileSdk = flutter.compileSdkVersion" (current) styles - matching only
+# one meant the substitution silently did nothing on the other.
+sed -i.bak -E 's/(compileSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/\1 = 35/' "$GRADLE_FILE"
+sed -i.bak -E 's/(targetSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/\1 = 35/' "$GRADLE_FILE"
+sed -i.bak -E 's/(minSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/\1 = 23/' "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
 
 echo "==> Merging AndroidManifest permissions"
@@ -128,7 +132,11 @@ echo "==> Registering new iOS Swift file with the Xcode project"
 # it to the Runner target's Sources build phase.
 python3 -m pip install --quiet --user --break-system-packages pbxproj
 PBXPROJ_BIN="$(python3 -m site --user-base)/bin/pbxproj"
-"$PBXPROJ_BIN" file app/ios/Runner.xcodeproj app/ios/Runner/MultipeerDiscoveryPlugin.swift --target Runner
+# Run from inside app/ios/ with paths relative to it - pbxproj resolves the
+# file argument relative to the .xcodeproj's own directory, so passing the
+# app/ios/ prefix again (as when run from repo root) doubles it into
+# app/ios/app/ios/... and Xcode can't find the file.
+(cd app/ios && "$PBXPROJ_BIN" file Runner.xcodeproj Runner/MultipeerDiscoveryPlugin.swift --target Runner)
 
 echo "Done. Project is ready in ./app"
 echo "Run: cd app && flutter run"
