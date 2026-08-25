@@ -35,6 +35,11 @@ if ! grep -q "play-services-nearby" "$GRADLE_FILE" 2>/dev/null; then
     "$GRADLE_FILE" > "$GRADLE_FILE.tmp" && mv "$GRADLE_FILE.tmp" "$GRADLE_FILE"
 fi
 
+echo "==> Ensuring compileSdk/targetSdk 35 (audioplayers requires it)"
+sed -i.bak -E 's/(compileSdk(Version)?) flutter\.compileSdkVersion/\1 35/' "$GRADLE_FILE"
+sed -i.bak -E 's/(targetSdk(Version)?) flutter\.targetSdkVersion/\1 35/' "$GRADLE_FILE"
+rm -f "$GRADLE_FILE.bak"
+
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
 if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
