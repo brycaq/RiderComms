@@ -1,7 +1,4 @@
-<!--
-  Merge these into android/app/src/main/AndroidManifest.xml, inside the
-  <manifest> tag and before <application>. setup.sh does this automatically.
--->
+<!-- Auto-merged into AndroidManifest.xml by scripts/setup.sh -->
 <uses-permission android:name="android.permission.INTERNET" />
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
