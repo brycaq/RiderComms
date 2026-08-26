@@ -82,6 +82,41 @@ PYEOF
   fi
 done
 
+echo "==> Bumping Android Gradle Plugin (and Gradle wrapper) version"
+# record_android's prebuilt classes.jar uses sealed classes (a newer JVM
+# bytecode feature). D8 bundled with AGP 7.3.0 (the Flutter template
+# default) can't dex sealed classes at all - "Sealed classes are not
+# supported as program classes" - no dependency-version fix helps here,
+# only a newer AGP does. AGP 8.x requires Gradle 8.4+, so bump both together
+# or the build fails a different way (AGP refusing to run on old Gradle).
+for AGP_FILE in "app/android/settings.gradle" "app/android/build.gradle"; do
+  if [ -f "$AGP_FILE" ]; then
+    python3 - "$AGP_FILE" <<'PYEOF'
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+content = re.sub(
+    r'(id\s+["\']com\.android\.application["\']\s+version\s+["\'])[\d.]+(["\'])',
+    r'\g<1>8.3.2\g<2>',
+    content,
+)
+content = re.sub(
+    r"(classpath\s+['\"]com\.android\.tools\.build:gradle:)[\d.]+(['\"])",
+    r"\g<1>8.3.2\g<2>",
+    content,
+)
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+  fi
+done
+WRAPPER_PROPS="app/android/gradle/wrapper/gradle-wrapper.properties"
+if [ -f "$WRAPPER_PROPS" ]; then
+  sed -i.bak -E 's/gradle-[0-9]+\.[0-9]+(\.[0-9]+)?-/gradle-8.4-/' "$WRAPPER_PROPS"
+  rm -f "$WRAPPER_PROPS.bak"
+fi
+
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
 if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
