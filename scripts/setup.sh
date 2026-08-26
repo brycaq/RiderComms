@@ -31,8 +31,18 @@ cp custom/android_native/MainActivity.kt "$ANDROID_KOTLIN_DIR/"
 echo "==> Adding Nearby Connections dependency to Android build.gradle"
 GRADLE_FILE="app/android/app/build.gradle"
 if ! grep -q "play-services-nearby" "$GRADLE_FILE" 2>/dev/null; then
-  awk '/^dependencies *\{/{print;print "    implementation \"com.google.android.gms:play-services-nearby:19.3.0\"";next}1' \
-    "$GRADLE_FILE" > "$GRADLE_FILE.tmp" && mv "$GRADLE_FILE.tmp" "$GRADLE_FILE"
+  # Append a new dependencies block rather than trying to insert into an
+  # existing one - Gradle merges multiple dependencies{} blocks in the same
+  # file just fine, and current Flutter templates don't reliably scaffold
+  # an empty one to anchor on (this is why "Unresolved reference: Strategy/
+  # DiscoveryOptions/Payload" showed up - the awk insertion never matched
+  # anything, so the dependency silently never got added).
+  cat >> "$GRADLE_FILE" <<'EOF'
+
+dependencies {
+    implementation "com.google.android.gms:play-services-nearby:19.3.0"
+}
+EOF
 fi
 
 echo "==> Ensuring compileSdk/targetSdk/minSdk 34 (record_android needs minSdk>=23; compileSdk 35 hit a corrupted android.jar on the runner, so staying on the more mature 34 instead)"
