@@ -41,6 +41,37 @@ sed -i.bak -E 's/(targetSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.targetS
 sed -i.bak -E 's/(minSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/\1 = 23/' "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
 
+echo "==> Bumping Kotlin Gradle Plugin version"
+# Flutter's default template pins an older Kotlin (~1.7.x). Adding the Nearby
+# Connections dependency pulls in kotlin-stdlib 1.9.24 transitively, and the
+# older compiler can't read that newer metadata format ("Class 'kotlin.Unit'
+# was compiled with an incompatible version of Kotlin"). Bump wherever the
+# version is declared - this has moved between settings.gradle (plugins
+# block, current) and the root build.gradle (ext.kotlin_version, older) across
+# Flutter versions, so patch both locations if present.
+for KOTLIN_FILE in "app/android/settings.gradle" "app/android/build.gradle"; do
+  if [ -f "$KOTLIN_FILE" ]; then
+    python3 - "$KOTLIN_FILE" <<'PYEOF'
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+content = re.sub(
+    r'(id\s+["\']org\.jetbrains\.kotlin\.android["\']\s+version\s+["\'])[\d.]+(["\'])',
+    r'\g<1>1.9.22\g<2>',
+    content,
+)
+content = re.sub(
+    r"(ext\.kotlin_version\s*=\s*['\"])[\d.]+(['\"])",
+    r"\g<1>1.9.22\g<2>",
+    content,
+)
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+  fi
+done
+
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
 if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
