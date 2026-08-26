@@ -141,6 +141,12 @@ with open(manifest_path, "w") as f:
     f.write(content)
 PYEOF
 fi
+if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
+  echo "ERROR: AndroidManifest permission merge did not take effect - BLUETOOTH_ADVERTISE is still missing after patching." >&2
+  echo "Dumping the manifest as generated so this is debuggable from the CI log:" >&2
+  cat "$MANIFEST" >&2
+  exit 1
+fi
 
 echo "==> Copying iOS native module"
 cp custom/ios_native/MultipeerDiscoveryPlugin.swift app/ios/Runner/
