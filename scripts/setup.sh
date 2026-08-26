@@ -35,41 +35,11 @@ if ! grep -q "play-services-nearby" "$GRADLE_FILE" 2>/dev/null; then
     "$GRADLE_FILE" > "$GRADLE_FILE.tmp" && mv "$GRADLE_FILE.tmp" "$GRADLE_FILE"
 fi
 
-echo "==> Ensuring compileSdk/targetSdk/minSdk (record_android + audioplayers require newer SDKs)"
-# Regex allows an optional '=' because Flutter's template has used both
-# "compileSdk flutter.compileSdkVersion" (older) and
-# "compileSdk = flutter.compileSdkVersion" (current) styles - matching only
-# one meant the substitution silently did nothing on the other.
-sed -i.bak -E 's/(compileSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/\1 = 35/' "$GRADLE_FILE"
-sed -i.bak -E 's/(targetSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/\1 = 35/' "$GRADLE_FILE"
+echo "==> Ensuring compileSdk/targetSdk/minSdk 34 (record_android needs minSdk>=23; compileSdk 35 hit a corrupted android.jar on the runner, so staying on the more mature 34 instead)"
+sed -i.bak -E 's/(compileSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.compileSdkVersion/\1 = 34/' "$GRADLE_FILE"
+sed -i.bak -E 's/(targetSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.targetSdkVersion/\1 = 34/' "$GRADLE_FILE"
 sed -i.bak -E 's/(minSdk(Version)?)[[:space:]]*=?[[:space:]]*flutter\.minSdkVersion/\1 = 23/' "$GRADLE_FILE"
 rm -f "$GRADLE_FILE.bak"
-
-echo "==> Pinning buildToolsVersion to match compileSdk 35"
-# Without this, Gradle can pair compileSdk 35 with whatever build-tools
-# happens to already be cached on the runner (observed: 30.0.3) - aapt2 from
-# a build-tools version that old can't parse the newer platform's resource
-# table format, producing a cryptic "entry offsets overlap actual entry
-# data" error that looks like SDK corruption but isn't.
-# Anchored on the "android {" block opener rather than the (possibly
-# variably-formatted) compileSdk line, since that's guaranteed to appear
-# verbatim and doesn't depend on the compileSdk substitution above having
-# matched whatever exact syntax this Flutter version's template used.
-python3 - "$GRADLE_FILE" <<'PYEOF'
-import sys, re
-path = sys.argv[1]
-with open(path) as f:
-    content = f.read()
-if 'buildToolsVersion' not in content:
-    content = re.sub(
-        r'(android\s*\{[ \t]*\n)',
-        r'\1    buildToolsVersion "35.0.0"\n',
-        content,
-        count=1,
-    )
-with open(path, 'w') as f:
-    f.write(content)
-PYEOF
 
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
@@ -141,8 +111,8 @@ PUB_CACHE_DIR="${PUB_CACHE:-$HOME/.pub-cache}"
 for GRADLE in "$PUB_CACHE_DIR"/hosted/pub.dev/record_android-*/android/build.gradle; do
   if [ -f "$GRADLE" ]; then
     sed -i.bak \
-      -e 's/flutter\.compileSdkVersion/35/g' \
-      -e 's/flutter\.targetSdkVersion/35/g' \
+      -e 's/flutter\.compileSdkVersion/34/g' \
+      -e 's/flutter\.targetSdkVersion/34/g' \
       -e 's/flutter\.minSdkVersion/23/g' \
       "$GRADLE"
     rm -f "$GRADLE.bak"
