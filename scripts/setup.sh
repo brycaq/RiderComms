@@ -120,14 +120,20 @@ fi
 echo "==> Merging AndroidManifest permissions"
 MANIFEST="app/android/app/src/main/AndroidManifest.xml"
 if ! grep -q "BLUETOOTH_ADVERTISE" "$MANIFEST"; then
-  # Strip any <!-- ... --> comment block(s) as a whole, not just lines that
-  # start with the markers - a comment spanning multiple lines needs a range
-  # delete or leftover text (even English prose) gets inserted as raw XML.
-  PERMS=$(sed '/<!--/,/-->/d' custom/android_native/AndroidManifest_permissions.xml)
-  python3 - "$MANIFEST" "$PERMS" <<'PYEOF'
+  # Read the permissions file directly rather than pre-stripping its comment
+  # header through sed - that comment is a single self-contained XML comment
+  # now (valid to insert as-is), and the previous sed '/<!--/,/-->/d' step
+  # hit a classic gotcha: when the opening and closing markers are on the
+  # SAME line, GNU sed's range address doesn't close there, so it silently
+  # consumed the entire file to EOF looking for another '-->' that never
+  # came. PERMS ended up empty every time, which is why the merge kept
+  # "succeeding" while inserting nothing but a blank line.
+  python3 - "$MANIFEST" "custom/android_native/AndroidManifest_permissions.xml" <<'PYEOF'
 import sys
 manifest_path = sys.argv[1]
-perms = sys.argv[2]
+perms_path = sys.argv[2]
+with open(perms_path) as f:
+    perms = f.read()
 with open(manifest_path) as f:
     content = f.read()
 content = content.replace("<application", perms + "\n    <application", 1)
