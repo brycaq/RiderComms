@@ -15,7 +15,16 @@ if ! command -v flutter >/dev/null 2>&1; then
 fi
 
 echo "==> Generating base Flutter project (app/)"
-flutter create --org com.example -i swift -a kotlin app
+# --project-name is required here: without it, flutter create derives the
+# Android package from the target directory name ("app"), producing
+# com.example.app instead of com.example.intercom_app. Our custom
+# MainActivity.kt/NearbyDiscoveryPlugin.kt then get copied into a package
+# directory that doesn't match the real one, compile fine as dead code, and
+# the actual running MainActivity is the untouched Flutter default - which
+# never registers our MethodChannel, hence "MissingPluginException: No
+# implementation found for method startBrowsing" at runtime despite a
+# perfectly successful build.
+flutter create --org com.example --project-name intercom_app -i swift -a kotlin app
 
 echo "==> Copying Dart source"
 rm -rf app/lib
@@ -24,6 +33,17 @@ cp custom/pubspec.yaml app/pubspec.yaml
 
 echo "==> Copying Android native module"
 ANDROID_KOTLIN_DIR="app/android/app/src/main/kotlin/com/example/intercom_app"
+# Verify this is actually where Flutter put the generated MainActivity.kt
+# before we overwrite it - if the package doesn't match, we'd silently
+# write our custom code into an unused directory (exactly the bug fixed
+# above), so catch that decisively instead of relying on --project-name
+# alone forever.
+if [ ! -f "$ANDROID_KOTLIN_DIR/MainActivity.kt" ]; then
+  echo "ERROR: Expected the generated MainActivity.kt at $ANDROID_KOTLIN_DIR/MainActivity.kt but it's not there." >&2
+  echo "The real package directory Flutter generated is probably different. Contents of app/android/app/src/main/kotlin/:" >&2
+  find app/android/app/src/main/kotlin -type f >&2
+  exit 1
+fi
 mkdir -p "$ANDROID_KOTLIN_DIR"
 cp custom/android_native/NearbyDiscoveryPlugin.kt "$ANDROID_KOTLIN_DIR/"
 cp custom/android_native/MainActivity.kt "$ANDROID_KOTLIN_DIR/"
