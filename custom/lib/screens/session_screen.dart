@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../session_state.dart';
@@ -13,18 +12,12 @@ class SessionScreen extends StatefulWidget {
 class _SessionScreenState extends State<SessionScreen> {
   final _audio = AudioService();
   bool _muted = false;
-  Timer? _chunkTimer;
-  bool _disposed = false;
 
-  // Automatic feed: record a short chunk, send it, immediately start the
-  // next one. This is NOT true continuous streaming (raw PCM would need a
-  // dedicated streaming-playback plugin that record/audioplayers don't
-  // provide) - it's short rolling clips, which gives hands-free automatic
-  // transmission with a small latency and a near-imperceptible gap between
-  // chunks, while reusing the same record/playback pipeline already proven
-  // to work. Shorten this for lower latency at the cost of more overhead
-  // per chunk, or lengthen it for the opposite trade-off.
-  static const _chunkDuration = Duration(milliseconds: 1200);
+  // How often a batch of continuously-captured audio gets sent. Shorter =
+  // lower latency but more send overhead per second of audio; this is safe
+  // to shorten further (e.g. 150-200ms) since capture is now continuous -
+  // there's no per-chunk codec startup cost to worry about anymore.
+  static const _chunkDuration = Duration(milliseconds: 300);
 
   @override
   void initState() {
@@ -46,36 +39,27 @@ class _SessionScreenState extends State<SessionScreen> {
       }
       return;
     }
-    _recordAndSendCycle();
-  }
-
-  Future<void> _recordAndSendCycle() async {
-    if (_disposed || _muted) return;
-    await _audio.startRecording();
-    _chunkTimer = Timer(_chunkDuration, () async {
-      if (_disposed) return;
-      final bytes = await _audio.stopRecordingAndGetBytes();
-      if (bytes != null && bytes.isNotEmpty && !_muted && mounted) {
-        await context.read<SessionState>().sendAudioChunk(bytes);
-      }
-      _recordAndSendCycle();
-    });
+    await _audio.startStreamingCapture(
+      (wavBytes) {
+        if (!_muted && mounted) {
+          context.read<SessionState>().sendAudioChunk(wavBytes);
+        }
+      },
+      chunkDuration: _chunkDuration,
+    );
   }
 
   Future<void> _toggleMute() async {
     setState(() => _muted = !_muted);
     if (_muted) {
-      _chunkTimer?.cancel();
-      await _audio.stopRecordingAndGetBytes(); // stop and discard the in-flight clip
+      await _audio.stopStreamingCapture();
     } else {
-      _recordAndSendCycle();
+      await _startAutoFeed();
     }
   }
 
   @override
   void dispose() {
-    _disposed = true;
-    _chunkTimer?.cancel();
     _audio.dispose();
     super.dispose();
   }
@@ -91,7 +75,7 @@ class _SessionScreenState extends State<SessionScreen> {
           IconButton(
             icon: const Icon(Icons.call_end),
             onPressed: () async {
-              _chunkTimer?.cancel();
+              await _audio.stopStreamingCapture();
               await session.endSession();
               if (context.mounted) Navigator.of(context).pop();
             },
