@@ -12,8 +12,11 @@ import io.flutter.plugin.common.MethodChannel
  * Wraps Google's Nearby Connections API behind the same method/event
  * contract as the iOS MultipeerDiscoveryPlugin, so the Dart bridge is
  * platform-agnostic. Uses P2P_STAR strategy: one host advertises, many
- * joiners connect directly to it (host relays if you extend this to
- * peer-to-peer broadcast later).
+ * joiners connect directly to it. Any received payload is relayed to this
+ * device's other connected endpoints (see onPayloadReceived) - on a leaf
+ * joiner that's a no-op since it only has one connection (the host), but on
+ * the host it forwards audio from one joiner out to every other joiner, so
+ * everyone in a session can hear everyone else.
  */
 class NearbyDiscoveryPlugin(private val context: Context) :
     MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
@@ -28,6 +31,11 @@ class NearbyDiscoveryPlugin(private val context: Context) :
     private var eventSink: EventChannel.EventSink? = null
     private var localName: String = android.os.Build.MODEL
 
+    // Tracks every endpoint currently connected to THIS device, so a
+    // broadcast send (peerId == null) actually has somewhere to go, and so
+    // relaying can exclude the original sender.
+    private val connectedEndpoints = mutableSetOf<String>()
+
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             if (payload.type == Payload.Type.BYTES) {
@@ -39,6 +47,10 @@ class NearbyDiscoveryPlugin(private val context: Context) :
                         "data" to bytes.toList(),
                     )
                 )
+                val others = connectedEndpoints.filter { it != endpointId }
+                if (others.isNotEmpty()) {
+                    connectionsClient.sendPayload(others, Payload.fromBytes(bytes))
+                }
             }
         }
 
@@ -55,6 +67,7 @@ class NearbyDiscoveryPlugin(private val context: Context) :
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
+                connectedEndpoints.add(endpointId)
                 emit(mapOf("type" to "peerConnected", "peerId" to endpointId))
             } else {
                 emit(mapOf("type" to "error", "peerId" to endpointId, "message" to "Connection failed"))
@@ -62,6 +75,7 @@ class NearbyDiscoveryPlugin(private val context: Context) :
         }
 
         override fun onDisconnected(endpointId: String) {
+            connectedEndpoints.remove(endpointId)
             emit(mapOf("type" to "peerDisconnected", "peerId" to endpointId))
         }
     }
@@ -108,10 +122,12 @@ class NearbyDiscoveryPlugin(private val context: Context) :
                 val payload = Payload.fromBytes(data)
                 if (peerId != null) {
                     connectionsClient.sendPayload(peerId, payload)
-                } else {
-                    // Broadcast: caller should track connected endpoint IDs and
-                    // call sendPayload per endpoint - simplified here as a no-op
-                    // broadcast hook left for the host-relay extension.
+                } else if (connectedEndpoints.isNotEmpty()) {
+                    // This was previously a no-op comment with nothing that
+                    // actually sent anything - the entire reason no audio
+                    // ever got through, since every real send in the app
+                    // goes through this broadcast path (no specific peerId).
+                    connectionsClient.sendPayload(connectedEndpoints.toList(), payload)
                 }
                 result.success(null)
             }
@@ -120,6 +136,7 @@ class NearbyDiscoveryPlugin(private val context: Context) :
                 connectionsClient.stopAdvertising()
                 connectionsClient.stopDiscovery()
                 connectionsClient.stopAllEndpoints()
+                connectedEndpoints.clear()
                 result.success(null)
             }
 
@@ -138,4 +155,4 @@ class NearbyDiscoveryPlugin(private val context: Context) :
     private fun emit(map: Map<String, Any?>) {
         eventSink?.success(map)
     }
-    }
+}
