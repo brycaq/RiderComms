@@ -143,6 +143,14 @@ extension MultipeerDiscoveryPlugin: MCSessionDelegate {
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         emit(["type": "dataReceived", "peerId": idFor(peerID), "data": FlutterStandardTypedData(bytes: data)])
+        // Relay to this device's other connected peers - a no-op on a leaf
+        // joiner (only connected to the host), but on the host this forwards
+        // audio from one joiner out to every other joiner. Matches the same
+        // relay added to NearbyDiscoveryPlugin.kt on Android.
+        let others = session.connectedPeers.filter { $0 != peerID }
+        if !others.isEmpty {
+            try? session.send(data, toPeers: others, with: .reliable)
+        }
     }
 
     // Unused stream/resource APIs - required by the protocol.
